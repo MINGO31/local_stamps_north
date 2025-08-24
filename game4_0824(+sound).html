@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>臺灣北部地區 & 注音符號郵票配對遊戲</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* 自定義樣式 */
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+        /* 拖曳中的郵票樣式 */
+        .dragging {
+            opacity: 0.5;
+            transform: scale(1.1);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        /* 放置區的提示樣式 */
+        .drop-zone-hover {
+            background-color: #fef9c3; /* yellow-100 */
+            border-color: #facc15; /* yellow-400 */
+        }
+        /* 正確答案的樣式 */
+        .correct {
+            border-color: #4ade80; /* green-400 */
+            box-shadow: 0 0 10px #4ade80;
+        }
+        /* 錯誤答案的樣式 */
+        .incorrect {
+            border-color: #f87171; /* red-400 */
+            box-shadow: 0 0 10px #f87171;
+        }
+        /* 統一定義放置區塊的定位與置中 */
+        .drop-zone {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            /* 校正模式下的樣式 */
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        /* 放置區的位置，使用絕對定位 (已微調對齊) */
+        #renai    { top: 20%; left: 78.5%; }
+        #jinshan  { top: 16.5%; left: 63.5%; }
+        #sanzhi   { top: 24%; left: 43%; }
+        #tamsui   { top: 38%; left: 35%; }
+        #beitou   { top: 31%; left: 51.5%; }
+        #shilin   { top: 41%; left: 57.5%; }
+        #zhongshan{ top: 47%; left: 67.5%; }
+        #luzhu    { top: 56%; left: 30%; }
+        #dayuan   { top: 66%; left: 20%; }
+        #hukou    { top: 76%; left: 45%; }
+        #zhubei   { top: 86%; left: 54.5%; }
+        #zhunan   { top: 91%; left: 36%; }
+        
+        /* 校正模式專用樣式 */
+        .correction-mode .drop-zone {
+            cursor: move;
+            border-color: #3b82f6; /* blue-500 */
+            box-shadow: 0 0 10px #3b82f6;
+            z-index: 10;
+        }
+        .correction-mode .drop-zone .coords {
+            display: block;
+        }
+        .coords {
+            display: none;
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-size: 10px;
+            white-space: nowrap;
+            pointer-events: none; /* 讓滑鼠可以穿透此元素 */
+        }
+    </style>
+</head>
+<body class="bg-blue-50 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-5xl mx-auto bg-white rounded-2xl shadow-lg p-4 sm:p-8">
+        <header class="flex flex-col md:flex-row justify-between items-start gap-4 mb-4">
+            <div class="text-left">
+                <h1 class="text-2xl sm:text-3xl font-bold text-blue-800">臺灣北部地區 & 郵票配對遊戲</h1>
+                <p class="text-gray-600 mt-2">請將下方的郵票，拖曳到地圖上對應的鄉鎮市區框中。</p>
+            </div>
+            <!-- 景點資訊顯示區 (已上移) -->
+            <div id="info-box" class="w-full md:w-1/3 p-4 bg-yellow-50 border-2 border-yellow-200 rounded-lg h-32 flex items-center justify-center shrink-0">
+                <p id="info-text" class="text-center text-yellow-800 flex-grow"></p>
+                <!-- 聲音播放按鈕 -->
+                <button id="play-sound-btn" class="hidden ml-2 p-2 rounded-full hover:bg-yellow-200 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-800"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- 控制按鈕區 -->
+        <div id="controls-area" class="mb-6 w-full flex flex-col md:flex-row justify-between items-center gap-4">
+            <!-- 左側按鈕 -->
+            <div class="flex gap-4 flex-wrap justify-center md:justify-start">
+                 <button id="check-button" class="px-6 py-3 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300">檢查答案</button>
+                 <button id="reset-button" class="px-6 py-3 bg-gray-500 text-white font-bold rounded-lg shadow-md hover:bg-gray-600 transition-colors duration-300">重新開始</button>
+                 <button id="correction-toggle-btn" class="px-4 py-3 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition-colors duration-300">開啟校正模式</button>
+            </div>
+            <!-- 右側計數器與訊息 -->
+            <div class="flex items-center gap-4 h-8">
+                <p id="result-message" class="text-lg font-bold"></p>
+                <span id="correct-counter" class="font-bold text-green-600"></span>
+                <span id="incorrect-counter" class="font-bold text-red-600"></span>
+            </div>
+        </div>
+
+        <main class="flex flex-col lg:flex-row gap-8">
+            <!-- 地圖區域 -->
+            <div class="map-area relative w-full lg:w-2/3 h-[350px] sm:h-[500px] bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+                <img src="https://raw.githubusercontent.com/MINGO31/local_stamps_north/refs/heads/main/game4_assets/north_map.png" alt="台灣北部地圖" class="max-w-full max-h-full">
+                
+                <!-- 放置區 -->
+                <div id="renai" data-answer="ㄖ" class="drop-zone w-16 h-16 sm:w-20 sm:h-20 bg-white/70 border-2 border-dashed border-gray-400 rounded-md flex items-center justify-center transition-all duration-200"><span class="coords"></span></div>
+                <div id="jinshan" data-answer="ㄐ" class="drop-zone w-16 h-16 sm:w-20 sm:h-20 bg-white/70 border-2 border-dashed border-gray-400 rounded-md flex items-center justify-center transition-all duration-200"><span class="coords"></span></div>
+                <div id="sanzhi" data-answer="ㄙ" class="drop-zone w-16 h-16 sm:w-20 sm:h-20 bg-white/70 border-2 border-dashed border-gray-400 rounded-md flex items-center justify-center transition-all duration-200"><span class="coords"></span></div>
+                <div id="tamsui" data-answer="ㄉ" class="drop-zone w-16 h-16 sm:w-20 sm:h-20 bg-white/70 border-2 border-dashed border-gray-400 rounded-md flex items-center justify-center transition-all duration-200"><span class="coords"></span></div>
+                <div id="beitou" data-answer="ㄅ" class="drop-zone w-16 h-16 sm:w-20 sm:h-20 bg-white/70 border-2 border-dashed border-gray-400 rounded-md flex items-center justify-center transition-all duration-200"><span class="coords"></span></div>
+                <div id="shilin" data-answer="ㄕ" class="drop-zone w-16 h-16 sm:w-20 sm:h-20 bg-white/70 border-2 border-dashed border-gray-400 rounded-md flex items-center justify-center transition-all duration-200"><span class="coords"></span></div>
+                <div id="zhongshan" data-answer="ㄓ" class="drop-zone w-16 h-16 sm:w-20 sm:h-20 bg-white/70 border-2 border-dashed border-gray-400 rounded-md flex items-center justify-center transition-all duration-200"><span class="coords"></span></div>
+                <div id="luzhu" data-answer="ㄌ" class="drop-zone w-16 h-16 sm:w-20 sm:h-20 bg-white/70 border-2 border-dashed border-gray-400 rounded-md flex items-center justify-center transition-all duration-200"><span class="coords"></span></div>
+                <div id="dayuan" data-answer="ㄉ" class="drop-zone w-16 h-16 sm:w-20 sm:h-20 bg-white/70 border-2 border-dashed border-gray-400 rounded-md flex items-center justify-center transition-all duration-200"><span class="coords"></span></div>
+                <div id="hukou" data-answer="ㄏ" class="drop-zone w-16 h-16 sm:w-20 sm:h-20 bg-white/70 border-2 border-dashed border-gray-400 rounded-md flex items-center justify-center transition-all duration-200"><span class="coords"></span></div>
+                <div id="zhubei" data-answer="ㄓ" class="drop-zone w-16 h-16 sm:w-20 sm:h-20 bg-white/70 border-2 border-dashed border-gray-400 rounded-md flex items-center justify-center transition-all duration-200"><span class="coords"></span></div>
+                <div id="zhunan" data-answer="ㄓ" class="drop-zone w-16 h-16 sm:w-20 sm:h-20 bg-white/70 border-2 border-dashed border-gray-400 rounded-md flex items-center justify-center transition-all duration-200"><span class="coords"></span></div>
+            </div>
+
+            <!-- 右側區域 -->
+            <div id="right-panel" class="w-full lg:w-1/3 flex flex-col gap-4">
+                <!-- 郵票區 -->
+                <div id="stamp-box" class="p-4 bg-blue-100 border-2 border-blue-200 rounded-lg">
+                    <h2 class="text-lg font-bold text-center text-blue-700 mb-4">郵票區</h2>
+                    <div id="stamp-collection" class="grid grid-cols-3 gap-4 place-items-center">
+                        <div class="stamp w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg shadow-md cursor-grab" draggable="true" data-zhuyin="ㄖ" data-info="基隆市仁愛區，是基隆市政府的所在地，擁有熱鬧的廟口夜市。" data-sound="https://mingo31.github.io/local_stamps_north/game4_assets/stamp1.mp3"><img src="https://raw.githubusercontent.com/MINGO31/local_stamps_north/refs/heads/main/game4_assets/stamp1.jpg" alt="郵票 ㄖ" class="w-full h-full object-cover rounded-lg"></div>
+                        <div class="stamp w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg shadow-md cursor-grab" draggable="true" data-zhuyin="ㄐ" data-info="新北市金山區，以金山老街和溫泉聞名，是北海岸的觀光熱點。" data-sound="https://mingo31.github.io/local_stamps_north/game4_assets/stamp2.mp3"><img src="https://raw.githubusercontent.com/MINGO31/local_stamps_north/refs/heads/main/game4_assets/stamp2.jpg" alt="郵票 ㄐ" class="w-full h-full object-cover rounded-lg"></div>
+                        <div class="stamp w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg shadow-md cursor-grab" draggable="true" data-zhuyin="ㄙ" data-info="新北市三芝區，是前總統李登輝的故鄉，有美麗的淺水灣海灘。" data-sound="https://mingo31.github.io/local_stamps_north/game4_assets/stamp3.mp3"><img src="https://raw.githubusercontent.com/MINGO31/local_stamps_north/refs/heads/main/game4_assets/stamp3.jpg" alt="郵票 ㄙ" class="w-full h-full object-cover rounded-lg"></div>
+                        <div class="stamp w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg shadow-md cursor-grab" draggable="true" data-zhuyin="ㄉ" data-info="新北市淡水區，擁有豐富的歷史古蹟和迷人的淡水河岸景觀。" data-sound="https://mingo31.github.io/local_stamps_north/game4_assets/stamp4.mp3"><img src="https://raw.githubusercontent.com/MINGO31/local_stamps_north/refs/heads/main/game4_assets/stamp4.jpg" alt="郵票 ㄉ" class="w-full h-full object-cover rounded-lg"></div>
+                        <div class="stamp w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg shadow-md cursor-grab" draggable="true" data-zhuyin="ㄅ" data-info="臺北市北投區，以其地熱谷和溫泉旅館而聞名遐邇。" data-sound="https://mingo31.github.io/local_stamps_north/game4_assets/stamp5.mp3"><img src="https://raw.githubusercontent.com/MINGO31/local_stamps_north/refs/heads/main/game4_assets/stamp5.jpg" alt="郵票 ㄅ" class="w-full h-full object-cover rounded-lg"></div>
+                        <div class="stamp w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg shadow-md cursor-grab" draggable="true" data-zhuyin="ㄕ" data-info="臺北市士林區，故宮博物院和士林夜市是這裡最著名的地標。" data-sound="https://mingo31.github.io/local_stamps_north/game4_assets/stamp6.mp3"><img src="https://raw.githubusercontent.com/MINGO31/local_stamps_north/refs/heads/main/game4_assets/stamp6.jpg" alt="郵票 ㄕ" class="w-full h-full object-cover rounded-lg"></div>
+                        <div class="stamp w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg shadow-md cursor-grab" draggable="true" data-zhuyin="ㄓ" data-info="臺北市中山區，商業活動頻繁，擁有許多金融機構和百貨公司。" data-sound="https://mingo31.github.io/local_stamps_north/game4_assets/stamp7.mp3"><img src="https://raw.githubusercontent.com/MINGO31/local_stamps_north/refs/heads/main/game4_assets/stamp7.jpg" alt="郵票 ㄓ" class="w-full h-full object-cover rounded-lg"></div>
+                        <div class="stamp w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg shadow-md cursor-grab" draggable="true" data-zhuyin="ㄌ" data-info="桃園市蘆竹區，鄰近桃園國際機場，是航空貨運的重要基地。" data-sound="https://mingo31.github.io/local_stamps_north/game4_assets/stamp8.mp3"><img src="https://raw.githubusercontent.com/MINGO31/local_stamps_north/refs/heads/main/game4_assets/stamp8.jpg" alt="郵票 ㄌ" class="w-full h-full object-cover rounded-lg"></div>
+                        <div class="stamp w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg shadow-md cursor-grab" draggable="true" data-zhuyin="ㄏ" data-info="新竹縣湖口鄉，以湖口老街的牌樓建築和軍事基地為特色。" data-sound="https://mingo31.github.io/local_stamps_north/game4_assets/stamp9.mp3"><img src="https://raw.githubusercontent.com/MINGO31/local_stamps_north/refs/heads/main/game4_assets/stamp9.jpg" alt="郵票 ㄏ" class="w-full h-full object-cover rounded-lg"></div>
+                        <div class="stamp w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg shadow-md cursor-grab" draggable="true" data-zhuyin="ㄇ" data-info="這是一個干擾選項，請尋找正確的配對！" data-sound="https://mingo31.github.io/local_stamps_north/game4_assets/stamp10.mp3"><img src="https://raw.githubusercontent.com/MINGO31/local_stamps_north/refs/heads/main/game4_assets/stamp10.jpg" alt="郵票 ㄇ" class="w-full h-full object-cover rounded-lg"></div>
+                        <div class="stamp w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg shadow-md cursor-grab" draggable="true" data-zhuyin="ㄊ" data-info="這是一個干擾選項，請尋找正確的配對！" data-sound="https://mingo31.github.io/local_stamps_north/game4_assets/stamp11.mp3"><img src="https://raw.githubusercontent.com/MINGO31/local_stamps_north/refs/heads/main/game4_assets/stamp11.jpg" alt="郵票 ㄊ" class="w-full h-full object-cover rounded-lg"></div>
+                        <div class="stamp w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg shadow-md cursor-grab" draggable="true" data-zhuyin="ㄎ" data-info="這是一個干擾選項，請尋找正確的配對！" data-sound="https://mingo31.github.io/local_stamps_north/game4_assets/stamp12.mp3"><img src="https://raw.githubusercontent.com/MINGO31/local_stamps_north/refs/heads/main/game4_assets/stamp12.jpg" alt="郵票 ㄎ" class="w-full h-full object-cover rounded-lg"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <audio id="audio-player" preload="auto"></audio>
+    <audio id="wrong-sound-player" preload="auto" src="https://mingo31.github.io/local_stamps_north/game4_assets/wrong.mp3"></audio>
+    <audio id="victory-sound-player" preload="auto" src="https://mingo31.github.io/local_stamps_north/game4_assets/victory.mp3"></audio>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // 遊戲主要元素
+            const stamps = document.querySelectorAll('.stamp');
+            const dropZones = document.querySelectorAll('.drop-zone');
+            const stampCollection = document.getElementById('stamp-collection');
+            const checkButton = document.getElementById('check-button');
+            const resetButton = document.getElementById('reset-button');
+            const resultMessage = document.getElementById('result-message');
+            const correctCounter = document.getElementById('correct-counter');
+            const incorrectCounter = document.getElementById('incorrect-counter');
+            const infoText = document.getElementById('info-text');
+            const playSoundBtn = document.getElementById('play-sound-btn');
+            const audioPlayer = document.getElementById('audio-player');
+            const wrongSoundPlayer = document.getElementById('wrong-sound-player');
+            const victorySoundPlayer = document.getElementById('victory-sound-player');
+            
+            // 校正模式相關元素
+            const correctionToggleButton = document.getElementById('correction-toggle-btn');
+            const gameContainer = document.querySelector('.w-full.max-w-5xl');
+            const mapArea = document.querySelector('.map-area');
+            let isCorrectionMode = false;
+            let activeZone = null;
+            let offsetX, offsetY;
+            let currentSoundSrc = null;
+
+            // --- 遊戲核心邏輯 ---
+            let draggedStamp = null;
+
+            // *** FIX STARTS HERE ***
+            // Function to safely play audio and handle potential errors
+            const playAudio = (player, src) => {
+                if (src) {
+                    player.src = src;
+                }
+                const playPromise = player.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        // Autoplay was prevented. This is common in modern browsers.
+                        // We can ignore this error or log it for debugging.
+                        console.log("Audio play prevented:", error);
+                    });
+                }
+            };
+            // *** FIX ENDS HERE ***
+
+            stamps.forEach(stamp => {
+                stamp.addEventListener('dragstart', (e) => {
+                    if (isCorrectionMode) {
+                        e.preventDefault();
+                        return;
+                    }
+                    draggedStamp = e.target.closest('.stamp');
+                    setTimeout(() => {
+                        draggedStamp.classList.add('dragging');
+                    }, 0);
+                    infoText.textContent = '';
+                    infoText.parentElement.classList.remove('bg-red-50', 'border-red-200');
+                    infoText.classList.remove('text-red-800');
+                    playSoundBtn.classList.add('hidden');
+                    currentSoundSrc = null;
+                });
+                stamp.addEventListener('dragend', (e) => {
+                    if (draggedStamp) {
+                       draggedStamp.classList.remove('dragging');
+                    }
+                });
+            });
+
+            dropZones.forEach(zone => {
+                zone.addEventListener('dragover', (e) => {
+                    if (isCorrectionMode) return;
+                    e.preventDefault();
+                    zone.classList.add('drop-zone-hover');
+                });
+                zone.addEventListener('dragleave', () => {
+                    if (isCorrectionMode) return;
+                    zone.classList.remove('drop-zone-hover');
+                });
+                zone.addEventListener('drop', (e) => {
+                    if (isCorrectionMode) return;
+                    e.preventDefault();
+                    zone.classList.remove('drop-zone-hover');
+                    const existingStamp = zone.querySelector('.stamp');
+                    if (existingStamp) {
+                        stampCollection.appendChild(existingStamp);
+                    }
+                    zone.appendChild(draggedStamp);
+
+                    const isCorrect = draggedStamp.dataset.zhuyin === zone.dataset.answer;
+                    if(isCorrect) {
+                        if (draggedStamp.dataset.zhuyin === 'ㄉ' && (zone.id === 'tamsui' || zone.id === 'dayuan')) {
+                             infoText.textContent = (zone.id === 'tamsui') 
+                                ? "新北市淡水區，擁有豐富的歷史古蹟和迷人的淡水河岸景觀。" 
+                                : "桃園市大園區，臺灣的國家門戶—桃園國際機場坐落於此。";
+                        } 
+                        else if (draggedStamp.dataset.zhuyin === 'ㄓ' && (zone.id === 'zhongshan' || zone.id === 'zhubei' || zone.id === 'zhunan')) {
+                            if (zone.id === 'zhongshan') infoText.textContent = "臺北市中山區，商業活動頻繁，擁有許多金融機構和百貨公司。";
+                            if (zone.id === 'zhubei') infoText.textContent = "新竹縣竹北市，是新竹縣的行政中心，高鐵新竹站也位於此。";
+                            if (zone.id === 'zhunan') infoText.textContent = "苗栗縣竹南鎮，是苗栗的交通樞紐之一，擁有竹南科學園區。";
+                        }
+                        else {
+                            infoText.textContent = draggedStamp.dataset.info;
+                        }
+                        infoText.parentElement.classList.remove('bg-red-50', 'border-red-200');
+                        infoText.classList.remove('text-red-800');
+                        
+                        currentSoundSrc = draggedStamp.dataset.sound;
+                        if(currentSoundSrc) {
+                            playAudio(audioPlayer, currentSoundSrc);
+                            playSoundBtn.classList.remove('hidden');
+                        }
+
+                    } else {
+                        infoText.textContent = '答錯了，再試一次！';
+                        infoText.parentElement.classList.add('bg-red-50', 'border-red-200');
+                        infoText.classList.add('text-red-800');
+                        playSoundBtn.classList.add('hidden');
+                        currentSoundSrc = null;
+                        playAudio(wrongSoundPlayer);
+                    }
+                    
+                    draggedStamp = null;
+                });
+            });
+            
+            playSoundBtn.addEventListener('click', () => {
+                if (currentSoundSrc) {
+                    playAudio(audioPlayer, currentSoundSrc);
+                }
+            });
+
+            checkButton.addEventListener('click', () => {
+                let correctCount = 0;
+                let incorrectCount = 0;
+                let totalPlaced = 0;
+                
+                dropZones.forEach(zone => {
+                    zone.classList.remove('correct', 'incorrect');
+                    const placedStamp = zone.querySelector('.stamp');
+                    if (placedStamp) {
+                        totalPlaced++;
+                        const isCorrect = placedStamp.dataset.zhuyin === zone.dataset.answer;
+                        if (isCorrect) {
+                            zone.classList.add('correct');
+                            correctCount++;
+                        } else {
+                            zone.classList.add('incorrect');
+                            incorrectCount++;
+                        }
+                    }
+                });
+                
+                if (totalPlaced === 0) {
+                    resultMessage.textContent = '請先拖曳郵票進行配對！';
+                    resultMessage.className = 'text-lg font-bold text-yellow-600';
+                    correctCounter.textContent = '';
+                    incorrectCounter.textContent = '';
+                    return;
+                }
+
+                correctCounter.textContent = `答對: ${correctCount}`;
+                incorrectCounter.textContent = `答錯: ${incorrectCount}`;
+
+                resultMessage.textContent = `答對了 ${correctCount} / ${dropZones.length} 題！`;
+                if (correctCount === dropZones.length) {
+                    resultMessage.textContent += " 🎉";
+                    resultMessage.className = 'text-lg font-bold text-green-600';
+                    playAudio(victorySoundPlayer);
+                } else {
+                    resultMessage.className = 'text-lg font-bold text-red-600';
+                }
+            });
+
+            resetButton.addEventListener('click', () => {
+                dropZones.forEach(zone => {
+                    zone.classList.remove('correct', 'incorrect');
+                    const placedStamp = zone.querySelector('.stamp');
+                    if (placedStamp) {
+                        stampCollection.appendChild(placedStamp);
+                    }
+                });
+                resultMessage.textContent = '';
+                resultMessage.className = 'text-lg font-bold';
+                correctCounter.textContent = '';
+                incorrectCounter.textContent = '';
+                infoText.textContent = '';
+                infoText.parentElement.classList.remove('bg-red-50', 'border-red-200');
+                infoText.classList.remove('text-red-800');
+                playSoundBtn.classList.add('hidden');
+                currentSoundSrc = null;
+            });
+
+            // --- 位置校正邏輯 ---
+            const updateCoordsDisplay = (zone) => {
+                const top = parseFloat(zone.style.top).toFixed(1);
+                const left = parseFloat(zone.style.left).toFixed(1);
+                zone.querySelector('.coords').textContent = `T:${top}%, L:${left}%`;
+            };
+
+            correctionToggleButton.addEventListener('click', () => {
+                isCorrectionMode = !isCorrectionMode; 
+                if (isCorrectionMode) {
+                    gameContainer.classList.add('correction-mode');
+                    correctionToggleButton.textContent = '關閉校正模式';
+                    correctionToggleButton.classList.remove('bg-purple-600', 'hover:bg-purple-700');
+                    correctionToggleButton.classList.add('bg-orange-500', 'hover:bg-orange-600');
+                    dropZones.forEach(zone => {
+                        updateCoordsDisplay(zone);
+                    });
+                } else {
+                    gameContainer.classList.remove('correction-mode');
+                    correctionToggleButton.textContent = '開啟校正模式';
+                    correctionToggleButton.classList.remove('bg-orange-500', 'hover:bg-orange-600');
+                    correctionToggleButton.classList.add('bg-purple-600', 'hover:bg-purple-700');
+                    exportPositions();
+                }
+            });
+
+            dropZones.forEach(zone => {
+                zone.addEventListener('mousedown', (e) => {
+                    if (!isCorrectionMode) return;
+                    e.preventDefault();
+                    activeZone = zone;
+                    const rect = activeZone.getBoundingClientRect();
+                    const mapRect = mapArea.getBoundingClientRect();
+                    offsetX = e.clientX - rect.left + mapRect.left;
+                    offsetY = e.clientY - rect.top + mapRect.top;
+                });
+            });
+
+            mapArea.addEventListener('mousemove', (e) => {
+                if (!activeZone) return;
+                e.preventDefault();
+                const mapRect = mapArea.getBoundingClientRect();
+                let x = e.clientX - mapRect.left;
+                let y = e.clientY - mapRect.top;
+                let newLeft = ((x - (offsetX - mapRect.left)) / mapRect.width) * 100;
+                let newTop = ((y - (offsetY - mapRect.top)) / mapRect.height) * 100;
+                newLeft = Math.max(0, Math.min(100, newLeft));
+                newTop = Math.max(0, Math.min(100, newTop));
+                activeZone.style.left = `${newLeft}%`;
+                activeZone.style.top = `${newTop}%`;
+                updateCoordsDisplay(activeZone);
+            });
+
+            window.addEventListener('mouseup', () => {
+                activeZone = null;
+            });
+
+            const exportPositions = () => {
+                console.clear();
+                console.log("/* --- 新的虛線框位置 (請複製貼到 CSS 中) --- */");
+                let cssOutput = "";
+                dropZones.forEach(zone => {
+                    const id = zone.id;
+                    const top = parseFloat(zone.style.top).toFixed(1);
+                    const left = parseFloat(zone.style.left).toFixed(1);
+                    cssOutput += `#${id}    { top: ${top}%; left: ${left}%; }\n`;
+                });
+                console.log(cssOutput);
+            };
+        });
+    </script>
+
+</body>
+</html>
